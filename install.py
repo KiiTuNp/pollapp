@@ -246,9 +246,15 @@ class SecretPollInstaller:
         
         # Install Node.js 18
         self.log("Installing Node.js 18", "INFO")
-        self.run_command(['curl', '-fsSL', 'https://deb.nodesource.com/setup_18.x', '-o', '/tmp/nodejs_setup.sh'])
-        self.run_command(['bash', '/tmp/nodejs_setup.sh'])
-        self.run_command(['apt-get', 'install', '-y', 'nodejs'], "Installing Node.js")
+        try:
+            # First try using NodeSource repository
+            self.run_command(['curl', '-fsSL', 'https://deb.nodesource.com/setup_18.x', '-o', '/tmp/nodejs_setup.sh'])
+            self.run_command(['bash', '/tmp/nodejs_setup.sh'])
+            self.run_command(['apt-get', 'install', '-y', 'nodejs'], "Installing Node.js")
+        except:
+            # Fallback to Ubuntu repository
+            self.log("NodeSource failed, trying Ubuntu repository", "WARNING")
+            self.run_command(['apt-get', 'install', '-y', 'nodejs', 'npm'], "Installing Node.js from Ubuntu repos")
         
         # Install MongoDB
         self.install_mongodb()
