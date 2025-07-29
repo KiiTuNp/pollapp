@@ -174,7 +174,9 @@ class ProductionValidator:
         # Check React version compatibility
         if 'react' in dependencies:
             react_version = dependencies['react']
-            if '^18' in react_version or '^17' in react_version:
+            if '^19' in react_version:
+                self.log_success(f"React 19 (latest): {react_version}")
+            elif '^18' in react_version or '^17' in react_version:
                 self.log_success(f"React version compatible: {react_version}")
             else:
                 self.log_warning(f"React version may be outdated: {react_version}")
