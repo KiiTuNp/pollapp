@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: Create a comprehensive interactive deployment script to automate the setup and deployment of the application on any server, including prompting the user for necessary variables and ensuring foolproof installation.
+user_problem_statement: Review every line of code and make sure everything is robust and functional. Then make sure the installation is smooth, that everything is compatible, that the node installation is correct, that all dependencies are compatible, that the VPS is cleaned before proceeding to avoid conflicts, when it is ready and compliant everything is done so that the application is put into production without errors. I need that after the installation script, the application is accessible via https. The installation script must display its progress.
 
 backend:
   - task: "Python installation script with MongoDB fix"
