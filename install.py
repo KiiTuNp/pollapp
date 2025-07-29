@@ -265,27 +265,36 @@ class SecretPollInstaller:
         """Install MongoDB"""
         self.log("Installing MongoDB", "INFO")
         
-        # Add MongoDB GPG key
-        self.run_command([
-            'curl', '-fsSL', 'https://www.mongodb.org/static/pgp/server-7.0.asc',
-            '-o', '/tmp/mongodb.asc'
-        ])
-        self.run_command(['gpg', '--dearmor', '/tmp/mongodb.asc', '-o', '/usr/share/keyrings/mongodb-server-7.0.gpg'])
-        
-        # Add MongoDB repository
-        distro = self.run_command(['lsb_release', '-cs'], capture_output=True).strip()
-        repo_line = f"deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu {distro}/mongodb-org/7.0 multiverse"
-        
-        with open('/etc/apt/sources.list.d/mongodb-org-7.0.list', 'w') as f:
-            f.write(repo_line + '\n')
-        
-        # Install MongoDB
-        self.run_command(['apt-get', 'update'])
-        self.run_command(['apt-get', 'install', '-y', 'mongodb-org'], "Installing MongoDB")
-        
-        # Enable and start MongoDB
-        self.run_command(['systemctl', 'enable', 'mongod'])
-        self.run_command(['systemctl', 'start', 'mongod'])
+        try:
+            # Add MongoDB GPG key with corrected syntax
+            self.run_command([
+                'curl', '-fsSL', 'https://www.mongodb.org/static/pgp/server-7.0.asc',
+                '-o', '/tmp/mongodb.asc'
+            ])
+            
+            # Use correct GPG syntax
+            self.run_command(['bash', '-c', 'cat /tmp/mongodb.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg'])
+            
+            # Add MongoDB repository
+            distro = self.run_command(['lsb_release', '-cs'], capture_output=True).strip()
+            repo_line = f"deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu {distro}/mongodb-org/7.0 multiverse"
+            
+            with open('/etc/apt/sources.list.d/mongodb-org-7.0.list', 'w') as f:
+                f.write(repo_line + '\n')
+            
+            # Install MongoDB
+            self.run_command(['apt-get', 'update'])
+            self.run_command(['apt-get', 'install', '-y', 'mongodb-org'], "Installing MongoDB")
+            
+            # Enable and start MongoDB
+            self.run_command(['systemctl', 'enable', 'mongod'])
+            self.run_command(['systemctl', 'start', 'mongod'])
+            
+        except Exception as e:
+            # Fallback to alternative MongoDB installation method
+            self.log(f"Primary MongoDB installation failed: {e}", "WARNING")
+            self.log("Trying alternative MongoDB installation method", "INFO")
+            self.install_mongodb_fallback()
     
     def setup_application(self):
         """Setup the Secret Poll application"""
