@@ -271,15 +271,37 @@ class SecretPollInstaller:
         """Install MongoDB"""
         self.log("Installing MongoDB", "INFO")
         
+        # Try multiple installation methods
+        mongodb_installed = False
+        
+        # Method 1: Try official MongoDB repository
         try:
-            # Add MongoDB GPG key with corrected syntax
+            self.log("Attempting MongoDB installation via official repository", "INFO")
+            
+            # Download and install GPG key
             self.run_command([
                 'curl', '-fsSL', 'https://www.mongodb.org/static/pgp/server-7.0.asc',
                 '-o', '/tmp/mongodb.asc'
             ])
             
-            # Use correct GPG syntax
-            self.run_command(['bash', '-c', 'cat /tmp/mongodb.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg'])
+            # Try multiple GPG command variations
+            gpg_commands = [
+                ['bash', '-c', 'cat /tmp/mongodb.asc | gpg --dearmor --batch --yes -o /usr/share/keyrings/mongodb-server-7.0.gpg'],
+                ['bash', '-c', 'gpg --dearmor --batch --yes < /tmp/mongodb.asc > /usr/share/keyrings/mongodb-server-7.0.gpg'],
+                ['gpg', '--dearmor', '--batch', '--yes', '--output', '/usr/share/keyrings/mongodb-server-7.0.gpg', '/tmp/mongodb.asc']
+            ]
+            
+            gpg_success = False
+            for cmd in gpg_commands:
+                try:
+                    self.run_command(cmd)
+                    gpg_success = True
+                    break
+                except:
+                    continue
+            
+            if not gpg_success:
+                raise Exception("All GPG methods failed")
             
             # Add MongoDB repository
             distro = self.run_command(['lsb_release', '-cs'], capture_output=True).strip()
@@ -290,47 +312,75 @@ class SecretPollInstaller:
             
             # Install MongoDB
             self.run_command(['apt-get', 'update'])
-            self.run_command(['apt-get', 'install', '-y', 'mongodb-org'], "Installing MongoDB")
+            self.run_command(['apt-get', 'install', '-y', 'mongodb-org'], "Installing MongoDB from official repository")
             
             # Enable and start MongoDB
             self.run_command(['systemctl', 'enable', 'mongod'])
             self.run_command(['systemctl', 'start', 'mongod'])
             
+            mongodb_installed = True
+            self.log("MongoDB installed successfully from official repository", "SUCCESS")
+            
         except Exception as e:
-            # Fallback to alternative MongoDB installation method
-            self.log(f"Primary MongoDB installation failed: {e}", "WARNING")
-            self.log("Trying alternative MongoDB installation method", "INFO")
-            self.install_mongodb_fallback()
-    
-    def install_mongodb_fallback(self):
-        """Fallback MongoDB installation method"""
-        try:
-            self.log("Installing MongoDB via Ubuntu repository", "INFO")
-            
-            # Try to install from Ubuntu repositories first
-            self.run_command(['apt-get', 'install', '-y', 'mongodb'], "Installing MongoDB from Ubuntu repos")
-            
-            # If mongodb service exists, use it; otherwise try mongod
-            result = subprocess.run(['systemctl', 'list-units', '--type=service'], 
-                                  capture_output=True, text=True)
-            
-            if 'mongodb.service' in result.stdout:
-                self.run_command(['systemctl', 'enable', 'mongodb'])
-                self.run_command(['systemctl', 'start', 'mongodb'])
-                self.log("MongoDB started as mongodb service", "SUCCESS")
-            elif 'mongod.service' in result.stdout:
-                self.run_command(['systemctl', 'enable', 'mongod'])
-                self.run_command(['systemctl', 'start', 'mongod'])
-                self.log("MongoDB started as mongod service", "SUCCESS")
-            else:
-                self.log("MongoDB service not found, trying manual start", "WARNING")
+            self.log(f"Official MongoDB installation failed: {e}", "WARNING")
+        
+        # Method 2: Fallback to Ubuntu repositories
+        if not mongodb_installed:
+            try:
+                self.log("Attempting MongoDB installation via Ubuntu repositories", "INFO")
                 
-        except Exception as fallback_error:
-            self.log(f"Fallback MongoDB installation also failed: {fallback_error}", "ERROR")
-            self.log("MongoDB installation failed. You may need to install it manually.", "ERROR")
-            
-            # Don't exit, continue with installation but warn user
-            self.log("Continuing installation without MongoDB - you'll need to install it manually", "WARNING")
+                # Try installing from Ubuntu repositories
+                self.run_command(['apt-get', 'install', '-y', 'mongodb'], "Installing MongoDB from Ubuntu repos")
+                
+                # Start the appropriate service
+                mongodb_service = None
+                try:
+                    # Check which MongoDB service is available
+                    result = subprocess.run(['systemctl', 'list-unit-files'], 
+                                          capture_output=True, text=True, check=True)
+                    
+                    if 'mongod.service' in result.stdout:
+                        mongodb_service = 'mongod'
+                    elif 'mongodb.service' in result.stdout:
+                        mongodb_service = 'mongodb'
+                    
+                    if mongodb_service:
+                        self.run_command(['systemctl', 'enable', mongodb_service])
+                        self.run_command(['systemctl', 'start', mongodb_service])
+                        self.log(f"MongoDB started as {mongodb_service} service", "SUCCESS")
+                    else:
+                        self.log("MongoDB installed but service not found", "WARNING")
+                        
+                except Exception as service_error:
+                    self.log(f"Service setup failed: {service_error}", "WARNING")
+                
+                mongodb_installed = True
+                self.log("MongoDB installed successfully from Ubuntu repositories", "SUCCESS")
+                
+            except Exception as e:
+                self.log(f"Ubuntu repository MongoDB installation failed: {e}", "WARNING")
+        
+        # Method 3: Try snap package
+        if not mongodb_installed:
+            try:
+                self.log("Attempting MongoDB installation via snap", "INFO")
+                self.run_command(['snap', 'install', 'mongodb'], "Installing MongoDB via snap")
+                mongodb_installed = True
+                self.log("MongoDB installed successfully via snap", "SUCCESS")
+                
+            except Exception as e:
+                self.log(f"Snap MongoDB installation failed: {e}", "WARNING")
+        
+        # Final check
+        if not mongodb_installed:
+            self.log("All MongoDB installation methods failed", "ERROR")
+            self.log("MongoDB will need to be installed manually", "WARNING")
+            self.log("The application can still be installed, but you'll need to:", "INFO")
+            self.log("1. Install MongoDB manually", "INFO") 
+            self.log("2. Ensure it's running on localhost:27017", "INFO")
+        else:
+            # Verify MongoDB is running
+            self.verify_mongodb_installation()
     
     def setup_application(self):
         """Setup the Secret Poll application"""
