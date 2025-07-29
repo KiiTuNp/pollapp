@@ -205,10 +205,20 @@ class ProductionValidator:
                 version_match = re.match(r'v(\d+)\.(\d+)\.(\d+)', node_version)
                 if version_match:
                     major = int(version_match.group(1))
-                    if major >= 16:
-                        self.log_success(f"Node.js version compatible: {node_version}")
+                    minor = int(version_match.group(2))
+                    
+                    # Check for Node.js 20 (preferred) or 18+ (minimum for React 19)
+                    if major == 20:
+                        self.log_success(f"Node.js 20 (optimal): {node_version}")
+                    elif major >= 18:
+                        if major == 18 and minor >= 17:
+                            self.log_success(f"Node.js version compatible with React 19: {node_version}")
+                        elif major > 18:
+                            self.log_success(f"Node.js version compatible: {node_version}")
+                        else:
+                            self.log_warning(f"Node.js 18.17+ required for React 19, got: {node_version}")
                     else:
-                        self.log_issue(f"Node.js version too old: {node_version} (need 16+)")
+                        self.log_issue(f"Node.js version too old for React 19: {node_version} (need 18.17+)")
                 else:
                     self.log_warning(f"Could not parse Node.js version: {node_version}")
             else:
@@ -218,13 +228,17 @@ class ProductionValidator:
         except Exception as e:
             self.log_warning(f"Could not check Node.js: {e}")
         
-        # Check npm
+        # Check npm compatibility
         try:
             result = subprocess.run(['npm', '--version'], 
                                   capture_output=True, text=True)
             if result.returncode == 0:
                 npm_version = result.stdout.strip()
-                self.log_success(f"npm available: {npm_version}")
+                npm_major = int(npm_version.split('.')[0])
+                if npm_major >= 8:
+                    self.log_success(f"npm version compatible: {npm_version}")
+                else:
+                    self.log_warning(f"npm version may be outdated: {npm_version} (recommended: 8+)")
             else:
                 self.log_issue("npm not working")
         except FileNotFoundError:
