@@ -105,17 +105,17 @@
 user_problem_statement: Create a comprehensive interactive deployment script to automate the setup and deployment of the application on any server, including prompting the user for necessary variables and ensuring foolproof installation.
 
 backend:
-  - task: "Interactive deployment script creation"
+  - task: "Python installation script with MongoDB fix"
     implemented: true  
     working: true
-    file: "/app/scripts/deploy-final.sh"
+    file: "/app/install.py"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
         - working: true
           agent: "main"
-          comment: "RÉSOLU: Créé deploy-final.sh avec interactivité clavier 100% fonctionnelle. Fonctions d'input corrigées, choix multiples opérationnels, validation des entrées. Script turnkey complet prêt pour production."
+          comment: "PROBLÈME MONGODB RÉSOLU ✅ Corrigé commande GPG et ajouté 3 méthodes de fallback pour installation MongoDB. Script Python professionnel avec configuration interactive complète pour domaine, SSL, serveur web."
   
   - task: "Health check endpoint (/api/health)"
     implemented: true
