@@ -464,7 +464,7 @@ class ProductionValidator:
             status = "❌ NOT READY - Critical issues must be resolved"
             color = "\033[91m"  # Red
         
-        print(f"\n{color}{status}\033[0m")
+        print(f"\n{color}{status}\0\033[0m")
         
         if self.issues:
             print(f"\n❌ Critical Issues to Address:")
