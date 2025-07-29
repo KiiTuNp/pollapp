@@ -1139,29 +1139,246 @@ echo "Services restarted"
         
         print(f"\n{Colors.GREEN}🎊 Your Secret Poll application is ready for production use!{Colors.END}")
     
-    def run(self):
-        """Main installation process"""
+    def run_installation(self):
+        """Run the complete installation process"""
         try:
             self.print_header()
+            
+            # Step 1: Check system requirements and root access
+            self.progress("Checking system requirements and permissions")
             self.check_root()
             self.check_system_requirements()
+            
+            # Step 2: Clean VPS environment
+            self.cleanup_vps()
+            
+            # Step 3: Collect configuration
+            self.progress("Collecting installation configuration")
             self.collect_configuration()
+            
+            # Step 4: Install system dependencies
             self.install_system_dependencies()
+            
+            # Step 5: Setup application
             self.setup_application()
+            
+            # Step 6: Configure web server
+            self.progress("Configuring web server")
             self.configure_web_server()
-            self.setup_ssl()
+            
+            # Step 7: Setup SSL certificates
+            if self.config['enable_ssl']:
+                self.setup_ssl()
+            else:
+                self.progress("Skipping SSL setup (HTTP only)")
+            
+            # Step 8: Create systemd service
+            self.progress("Creating system service")
             self.create_systemd_service()
+            
+            # Step 9: Setup firewall rules
+            self.progress("Configuring firewall and security")
+            self.setup_firewall()
+            
+            # Step 10: Create management tools
+            self.progress("Creating management and monitoring tools")
             self.create_management_tools()
+            
+            # Step 11: Verify installation
+            self.progress("Verifying installation and testing services")
             self.verify_installation()
-            self.show_final_instructions()
+            
+            # Step 12: Final configuration and start services
+            self.progress("Starting services and finalizing setup")
+            self.finalize_installation()
+            
+            # Installation complete
+            self.show_installation_summary()
             
         except KeyboardInterrupt:
-            self.log("Installation interrupted by user", "WARNING")
+            self.log("Installation cancelled by user", "WARNING")
             sys.exit(1)
         except Exception as e:
             self.log(f"Installation failed: {str(e)}", "ERROR")
+            self.log("Check the log file for detailed error information", "INFO")
             sys.exit(1)
+    
+    def setup_firewall(self):
+        """Setup basic firewall rules"""
+        try:
+            # Install ufw if not present
+            self.run_command(['apt-get', 'install', '-y', 'ufw'], "Installing UFW firewall")
+            
+            # Reset firewall to default
+            self.run_command(['ufw', '--force', 'reset'], ignore_errors=True)
+            
+            # Set default policies
+            self.run_command(['ufw', 'default', 'deny', 'incoming'])
+            self.run_command(['ufw', 'default', 'allow', 'outgoing'])
+            
+            # Allow SSH (be careful not to lock ourselves out)
+            self.run_command(['ufw', 'allow', 'ssh'])
+            self.run_command(['ufw', 'allow', '22/tcp'])
+            
+            # Allow HTTP and HTTPS
+            self.run_command(['ufw', 'allow', '80/tcp'])
+            if self.config['enable_ssl']:
+                self.run_command(['ufw', 'allow', '443/tcp'])
+            
+            # Enable firewall
+            self.run_command(['ufw', '--force', 'enable'], "Enabling firewall")
+            
+            self.log("Firewall configured successfully", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"Firewall setup failed: {e}", "WARNING")
+            self.log("Continuing without firewall - configure manually later", "INFO")
+    
+    def verify_installation(self):
+        """Verify the installation is working correctly"""
+        self.log("Running installation verification tests", "INFO")
+        
+        # Check if all required files exist
+        required_files = [
+            f"{self.install_dir}/backend/server.py",
+            f"{self.install_dir}/frontend/build/index.html",
+            f"/etc/systemd/system/{self.service_name}.service"
+        ]
+        
+        for file_path in required_files:
+            if os.path.exists(file_path):
+                self.log(f"✓ {file_path} exists", "SUCCESS")
+            else:
+                self.log(f"✗ {file_path} missing", "ERROR")
+        
+        # Test Python dependencies
+        try:
+            backend_python = f"{self.install_dir}/backend/venv/bin/python"
+            test_cmd = [backend_python, '-c', 'import fastapi, pymongo, reportlab; print("All dependencies OK")']
+            result = subprocess.run(test_cmd, capture_output=True, text=True, check=True)
+            self.log("✓ Python dependencies verified", "SUCCESS")
+        except Exception as e:
+            self.log(f"✗ Python dependencies issue: {e}", "ERROR")
+        
+        # Test Node.js build
+        try:
+            os.chdir(f"{self.install_dir}/frontend")
+            if os.path.exists('build/index.html'):
+                self.log("✓ Frontend build verified", "SUCCESS")
+            else:
+                self.log("✗ Frontend build missing", "ERROR")
+        except Exception as e:
+            self.log(f"Frontend build issue: {e}", "WARNING")
+    
+    def finalize_installation(self):
+        """Finalize installation and start services"""
+        # Set correct permissions
+        self.run_command(['chown', '-R', 'www-data:www-data', self.install_dir])
+        
+        # Start and enable services
+        services_to_start = [self.service_name]
+        if self.config['web_server'] != 'standalone':
+            services_to_start.append(self.config['web_server'])
+        
+        for service in services_to_start:
+            try:
+                self.run_command(['systemctl', 'enable', service])
+                self.run_command(['systemctl', 'start', service])
+                self.log(f"✓ {service} service started", "SUCCESS")
+            except Exception as e:
+                self.log(f"✗ Failed to start {service}: {e}", "ERROR")
+        
+        # Wait a moment for services to start
+        import time
+        time.sleep(3)
+        
+        # Test service health
+        self.test_service_health()
+    
+    def test_service_health(self):
+        """Test if services are responding"""
+        self.log("Testing service health", "INFO")
+        
+        # Test backend health endpoint
+        try:
+            import urllib.request
+            health_url = f"http://localhost:8001/api/health"
+            response = urllib.request.urlopen(health_url, timeout=10)
+            if response.getcode() == 200:
+                self.log("✓ Backend health check passed", "SUCCESS")
+            else:
+                self.log("✗ Backend health check failed", "ERROR")
+        except Exception as e:
+            self.log(f"✗ Backend not responding: {e}", "ERROR")
+        
+        # Test web server
+        if self.config['web_server'] != 'standalone':
+            try:
+                test_url = f"http://localhost/"
+                response = urllib.request.urlopen(test_url, timeout=10)
+                if response.getcode() in [200, 404]:  # 404 is OK if no content yet
+                    self.log("✓ Web server responding", "SUCCESS")
+                else:
+                    self.log("✗ Web server not responding", "ERROR")
+            except Exception as e:
+                self.log(f"Web server test: {e}", "WARNING")
+    
+    def show_installation_summary(self):
+        """Show installation summary and next steps"""
+        print(f"\n{Colors.GREEN}╔══════════════════════════════════════════════════════════════════════════════╗")
+        print(f"║                     🎉 INSTALLATION COMPLETED SUCCESSFULLY! 🎉               ║")
+        print(f"╚══════════════════════════════════════════════════════════════════════════════╝{Colors.END}")
+        
+        print(f"\n{Colors.BOLD}🌟 Your Secret Poll application is now ready!{Colors.END}")
+        
+        # Application URLs
+        protocol = "https" if self.config['enable_ssl'] else "http"
+        app_url = f"{protocol}://{self.config['domain']}"
+        
+        print(f"\n{Colors.CYAN}📍 Application URL:{Colors.END}")
+        print(f"   {Colors.BOLD}{app_url}{Colors.END}")
+        
+        if not self.config['enable_ssl']:
+            print(f"   {Colors.YELLOW}Note: HTTP only - consider enabling HTTPS for production{Colors.END}")
+        
+        # Service management
+        print(f"\n{Colors.CYAN}🔧 Service Management:{Colors.END}")
+        print(f"   Status:  {Colors.BOLD}sudo systemctl status {self.service_name}{Colors.END}")
+        print(f"   Start:   {Colors.BOLD}sudo systemctl start {self.service_name}{Colors.END}")
+        print(f"   Stop:    {Colors.BOLD}sudo systemctl stop {self.service_name}{Colors.END}")
+        print(f"   Restart: {Colors.BOLD}sudo systemctl restart {self.service_name}{Colors.END}")
+        print(f"   Logs:    {Colors.BOLD}sudo journalctl -u {self.service_name} -f{Colors.END}")
+        
+        # Management tools
+        print(f"\n{Colors.CYAN}🛠️ Management Tools:{Colors.END}")
+        print(f"   Quick Status: {Colors.BOLD}{self.install_dir}/status.sh{Colors.END}")
+        print(f"   View Logs:    {Colors.BOLD}{self.install_dir}/logs.sh{Colors.END}")
+        print(f"   Restart All:  {Colors.BOLD}{self.install_dir}/restart.sh{Colors.END}")
+        
+        # Security recommendations
+        print(f"\n{Colors.CYAN}🔒 Security Recommendations:{Colors.END}")
+        if not self.config['enable_ssl']:
+            print(f"   • {Colors.YELLOW}Setup HTTPS with: sudo certbot --nginx -d {self.config['domain']}{Colors.END}")
+        print(f"   • Regularly update the system: {Colors.BOLD}sudo apt update && sudo apt upgrade{Colors.END}")
+        print(f"   • Monitor logs: {Colors.BOLD}sudo journalctl -u {self.service_name}{Colors.END}")
+        print(f"   • Backup configuration files in {Colors.BOLD}{self.install_dir}{Colors.END}")
+        
+        # Next steps
+        print(f"\n{Colors.CYAN}🚀 Next Steps:{Colors.END}")
+        print(f"   1. Visit {Colors.BOLD}{app_url}{Colors.END} to test your application")
+        print(f"   2. Create your first meeting room and test the polling functionality")
+        print(f"   3. Review the firewall settings if needed")
+        print(f"   4. Setup monitoring and backups for production use")
+        
+        print(f"\n{Colors.GREEN}Happy polling! 🗳️{Colors.END}")
+        print(f"\n{Colors.BOLD}Installation log saved to: {self.log_file}{Colors.END}")
+
+
+def main():
+    """Main installer function"""
+    installer = SecretPollInstaller()
+    installer.run_installation()
+
 
 if __name__ == "__main__":
-    installer = SecretPollInstaller()
-    installer.run()
+    main()
