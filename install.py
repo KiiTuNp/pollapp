@@ -92,6 +92,51 @@ class SecretPollInstaller:
         except Exception as e:
             print(f"Warning: Could not write to log file: {e}")
     
+    def cleanup_vps(self):
+        """Clean VPS environment to avoid conflicts"""
+        self.progress("Cleaning VPS environment to prevent conflicts")
+        
+        # Stop potentially conflicting services
+        conflicting_services = ['apache2', 'nginx', 'httpd', 'lighttpd']
+        for service in conflicting_services:
+            try:
+                # Check if service is running
+                result = subprocess.run(['systemctl', 'is-active', service], 
+                                      capture_output=True, text=True)
+                if result.stdout.strip() == 'active':
+                    self.log(f"Stopping conflicting service: {service}", "INFO")
+                    self.run_command(['systemctl', 'stop', service], ignore_errors=True)
+                    self.run_command(['systemctl', 'disable', service], ignore_errors=True)
+            except:
+                continue
+        
+        # Clean package cache
+        self.log("Cleaning package cache", "INFO")
+        self.run_command(['apt-get', 'clean'], ignore_errors=True)
+        self.run_command(['apt-get', 'autoremove', '-y'], ignore_errors=True)
+        
+        # Clear any existing installations in target directory
+        if os.path.exists(self.install_dir):
+            self.log(f"Removing existing installation at {self.install_dir}", "WARNING")
+            self.run_command(['rm', '-rf', self.install_dir], ignore_errors=True)
+        
+        # Check for port conflicts and attempt to free them
+        conflicting_ports = [80, 443, 8001]
+        for port in conflicting_ports:
+            try:
+                result = subprocess.run(['lsof', '-ti', f':{port}'], 
+                                      capture_output=True, text=True)
+                if result.stdout.strip():
+                    pids = result.stdout.strip().split('\n')
+                    for pid in pids:
+                        if pid:
+                            self.log(f"Killing process on port {port} (PID: {pid})", "WARNING")
+                            self.run_command(['kill', '-9', pid], ignore_errors=True)
+            except:
+                continue
+        
+        self.log("VPS cleanup completed", "SUCCESS")
+    
     def check_root(self):
         """Verify script is running as root"""
         if os.geteuid() != 0:
