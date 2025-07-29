@@ -563,6 +563,20 @@ class SecretPollInstaller:
         frontend_dir = Path(self.install_dir) / 'frontend'
         os.chdir(frontend_dir)
         
+        # Verify Node.js compatibility with React 19
+        try:
+            result = subprocess.run(['node', '--version'], capture_output=True, text=True)
+            node_version = result.stdout.strip()
+            major_version = int(node_version.split('.')[0][1:])  # Remove 'v' and get major version
+            
+            if major_version >= 18:
+                self.log(f"Node.js {node_version} is compatible with React 19", "SUCCESS")
+            else:
+                self.log(f"Warning: Node.js {node_version} may not be compatible with React 19", "WARNING")
+                self.log("React 19 requires Node.js 18.17.0 or higher", "INFO")
+        except Exception as e:
+            self.log(f"Could not verify Node.js version: {e}", "WARNING")
+        
         # Install Node.js dependencies and build
         if (frontend_dir / 'yarn.lock').exists():
             self.run_command(['npm', 'install', '-g', 'yarn'])
@@ -571,6 +585,14 @@ class SecretPollInstaller:
         else:
             self.run_command(['npm', 'install'], "Installing frontend dependencies")
             self.run_command(['npm', 'run', 'build'], "Building frontend application")
+        
+        # Verify build was successful
+        build_index = frontend_dir / 'build' / 'index.html'
+        if build_index.exists():
+            self.log("Frontend build completed successfully", "SUCCESS")
+        else:
+            self.log("Frontend build may have failed", "ERROR")
+            raise Exception("Frontend build verification failed")
         
         # Create environment configuration
         self.create_frontend_config()
