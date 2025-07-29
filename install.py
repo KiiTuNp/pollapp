@@ -304,17 +304,38 @@ class SecretPollInstaller:
         python_packages = ['python3', 'python3-pip', 'python3-venv', 'python3-dev', 'build-essential']
         self.run_command(['apt-get', 'install', '-y'] + python_packages, "Installing Python")
         
-        # Install Node.js 18
-        self.log("Installing Node.js 18", "INFO")
+        # Install Node.js 20 (LTS)
+        self.log("Installing Node.js 20 (LTS)", "INFO")
         try:
-            # First try using NodeSource repository
-            self.run_command(['curl', '-fsSL', 'https://deb.nodesource.com/setup_18.x', '-o', '/tmp/nodejs_setup.sh'])
+            # First try using NodeSource repository for Node.js 20
+            self.run_command(['curl', '-fsSL', 'https://deb.nodesource.com/setup_20.x', '-o', '/tmp/nodejs_setup.sh'])
             self.run_command(['bash', '/tmp/nodejs_setup.sh'])
-            self.run_command(['apt-get', 'install', '-y', 'nodejs'], "Installing Node.js")
-        except:
+            self.run_command(['apt-get', 'install', '-y', 'nodejs'], "Installing Node.js 20")
+            
+            # Verify Node.js 20 installation
+            result = subprocess.run(['node', '--version'], capture_output=True, text=True)
+            node_version = result.stdout.strip()
+            if node_version.startswith('v20.'):
+                self.log(f"Node.js 20 installed successfully: {node_version}", "SUCCESS")
+            else:
+                self.log(f"Warning: Expected Node.js 20, got {node_version}", "WARNING")
+                
+        except Exception as e:
             # Fallback to Ubuntu repository
             self.log("NodeSource failed, trying Ubuntu repository", "WARNING")
-            self.run_command(['apt-get', 'install', '-y', 'nodejs', 'npm'], "Installing Node.js from Ubuntu repos")
+            try:
+                self.run_command(['apt-get', 'install', '-y', 'nodejs', 'npm'], "Installing Node.js from Ubuntu repos")
+                # Check if we got a compatible version
+                result = subprocess.run(['node', '--version'], capture_output=True, text=True)
+                node_version = result.stdout.strip()
+                major_version = int(node_version.split('.')[0][1:])  # Remove 'v' and get major version
+                if major_version >= 18:
+                    self.log(f"Node.js {node_version} is compatible with React 19", "SUCCESS")
+                else:
+                    self.log(f"Node.js {node_version} may not be compatible with React 19", "WARNING")
+            except Exception as fallback_error:
+                self.log(f"Node.js installation failed: {fallback_error}", "ERROR")
+                raise fallback_error
         
         # Install MongoDB
         self.install_mongodb()
