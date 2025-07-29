@@ -287,7 +287,7 @@ class SecretPollInstaller:
     
     def install_system_dependencies(self):
         """Install system dependencies"""
-        self.log("Installing system dependencies", "STEP")
+        self.progress("Installing system dependencies and preparing environment")
         
         # Update package list
         self.run_command(['apt-get', 'update'], "Updating package list")
@@ -295,7 +295,8 @@ class SecretPollInstaller:
         # Install basic dependencies
         basic_packages = [
             'curl', 'wget', 'git', 'unzip', 'software-properties-common',
-            'apt-transport-https', 'ca-certificates', 'gnupg', 'lsb-release'
+            'apt-transport-https', 'ca-certificates', 'gnupg', 'lsb-release',
+            'lsof', 'htop', 'nano', 'vim'  # Added useful system tools
         ]
         self.run_command(['apt-get', 'install', '-y'] + basic_packages, "Installing basic packages")
         
