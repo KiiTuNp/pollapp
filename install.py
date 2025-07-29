@@ -489,7 +489,7 @@ class SecretPollInstaller:
     
     def setup_application(self):
         """Setup the Secret Poll application"""
-        self.log("Setting up Secret Poll application", "STEP")
+        self.progress("Setting up Secret Poll application files")
         
         # Create installation directory
         os.makedirs(self.install_dir, exist_ok=True)
