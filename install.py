@@ -382,6 +382,51 @@ class SecretPollInstaller:
             # Verify MongoDB is running
             self.verify_mongodb_installation()
     
+    def verify_mongodb_installation(self):
+        """Verify MongoDB is properly installed and running"""
+        self.log("Verifying MongoDB installation", "INFO")
+        
+        # Wait a moment for service to start
+        import time
+        time.sleep(3)
+        
+        # Try different ways to check if MongoDB is running
+        mongodb_running = False
+        
+        # Check systemd services
+        for service in ['mongod', 'mongodb']:
+            try:
+                result = subprocess.run(['systemctl', 'is-active', service], 
+                                      capture_output=True, text=True)
+                if result.stdout.strip() == 'active':
+                    self.log(f"MongoDB is running as {service} service", "SUCCESS")
+                    mongodb_running = True
+                    break
+            except:
+                continue
+        
+        # If systemd check failed, try connecting directly
+        if not mongodb_running:
+            try:
+                # Try to connect to MongoDB
+                import socket
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                result = sock.connect_ex(('localhost', 27017))
+                sock.close()
+                
+                if result == 0:
+                    self.log("MongoDB is responding on port 27017", "SUCCESS")
+                    mongodb_running = True
+                else:
+                    self.log("MongoDB is not responding on port 27017", "WARNING")
+                    
+            except Exception as e:
+                self.log(f"Could not verify MongoDB connection: {e}", "WARNING")
+        
+        if not mongodb_running:
+            self.log("MongoDB verification failed - manual intervention may be required", "WARNING")
+    
     def setup_application(self):
         """Setup the Secret Poll application"""
         self.log("Setting up Secret Poll application", "STEP")
