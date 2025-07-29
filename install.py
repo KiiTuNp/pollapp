@@ -42,6 +42,20 @@ class SecretPollInstaller:
         self.install_dir = "/opt/secret-poll"
         self.log_file = "/var/log/secret-poll-install.log"
         self.service_name = "secret-poll"
+        self.total_steps = 12
+        self.current_step = 0
+        
+    def progress(self, step_description: str):
+        """Display progress with step counter"""
+        self.current_step += 1
+        percentage = int((self.current_step / self.total_steps) * 100)
+        bar_length = 30
+        filled_length = int(bar_length * self.current_step // self.total_steps)
+        bar = '█' * filled_length + '-' * (bar_length - filled_length)
+        
+        print(f"\n{Colors.BOLD}[{self.current_step}/{self.total_steps}] {step_description}{Colors.END}")
+        print(f"{Colors.CYAN}Progress: |{bar}| {percentage}% Complete{Colors.END}")
+        self.log(f"Step {self.current_step}/{self.total_steps}: {step_description}", "PROGRESS")
         
     def print_header(self):
         """Print installation header"""
