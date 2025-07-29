@@ -296,6 +296,36 @@ class SecretPollInstaller:
             self.log("Trying alternative MongoDB installation method", "INFO")
             self.install_mongodb_fallback()
     
+    def install_mongodb_fallback(self):
+        """Fallback MongoDB installation method"""
+        try:
+            self.log("Installing MongoDB via Ubuntu repository", "INFO")
+            
+            # Try to install from Ubuntu repositories first
+            self.run_command(['apt-get', 'install', '-y', 'mongodb'], "Installing MongoDB from Ubuntu repos")
+            
+            # If mongodb service exists, use it; otherwise try mongod
+            result = subprocess.run(['systemctl', 'list-units', '--type=service'], 
+                                  capture_output=True, text=True)
+            
+            if 'mongodb.service' in result.stdout:
+                self.run_command(['systemctl', 'enable', 'mongodb'])
+                self.run_command(['systemctl', 'start', 'mongodb'])
+                self.log("MongoDB started as mongodb service", "SUCCESS")
+            elif 'mongod.service' in result.stdout:
+                self.run_command(['systemctl', 'enable', 'mongod'])
+                self.run_command(['systemctl', 'start', 'mongod'])
+                self.log("MongoDB started as mongod service", "SUCCESS")
+            else:
+                self.log("MongoDB service not found, trying manual start", "WARNING")
+                
+        except Exception as fallback_error:
+            self.log(f"Fallback MongoDB installation also failed: {fallback_error}", "ERROR")
+            self.log("MongoDB installation failed. You may need to install it manually.", "ERROR")
+            
+            # Don't exit, continue with installation but warn user
+            self.log("Continuing installation without MongoDB - you'll need to install it manually", "WARNING")
+    
     def setup_application(self):
         """Setup the Secret Poll application"""
         self.log("Setting up Secret Poll application", "STEP")
