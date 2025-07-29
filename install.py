@@ -831,7 +831,7 @@ server {{
         if not self.config['enable_ssl']:
             return
         
-        self.log("Setting up SSL certificates", "STEP")
+        self.progress("Setting up SSL certificates with Let's Encrypt")
         
         # Install Certbot
         self.run_command(['apt-get', 'install', '-y', 'certbot'], "Installing Certbot")
@@ -841,25 +841,81 @@ server {{
         elif self.config['web_server'] == 'apache':
             self.run_command(['apt-get', 'install', '-y', 'python3-certbot-apache'])
         
+        # Verify domain DNS resolution before obtaining certificate
+        self.verify_domain_dns()
+        
         # Obtain certificate
         domain = self.config['domain']
         email = self.config['ssl_email']
         
+        # Create webroot directory
+        webroot_path = f"{self.install_dir}/frontend/build"
+        os.makedirs(webroot_path, exist_ok=True)
+        
+        # Create a simple index.html for verification
+        with open(f"{webroot_path}/index.html", 'w') as f:
+            f.write("<html><body><h1>Secret Poll Setup</h1></body></html>")
+        
         certbot_cmd = [
             'certbot', 'certonly', '--webroot',
-            '-w', f"{self.install_dir}/frontend/build",
+            '-w', webroot_path,
             '-d', domain,
             '--email', email,
             '--agree-tos',
-            '--non-interactive'
+            '--non-interactive',
+            '--expand'  # Allow expanding to new domains
         ]
         
-        self.run_command(certbot_cmd, "Obtaining SSL certificate")
+        try:
+            self.run_command(certbot_cmd, "Obtaining SSL certificate")
+            self.log("SSL certificate obtained successfully", "SUCCESS")
+        except Exception as e:
+            self.log(f"SSL certificate generation failed: {e}", "WARNING")
+            self.log("HTTPS will be disabled. You can run 'certbot certonly' manually later.", "INFO")
+            self.config['enable_ssl'] = False
+            return
         
         # Setup auto-renewal
         self.setup_ssl_renewal()
         
+        # Verify certificate
+        self.verify_ssl_certificate()
+        
         self.log("SSL certificates configured successfully", "SUCCESS")
+    
+    def verify_domain_dns(self):
+        """Verify domain DNS resolution"""
+        domain = self.config['domain']
+        self.log(f"Verifying DNS resolution for {domain}", "INFO")
+        
+        try:
+            import socket
+            ip = socket.gethostbyname(domain)
+            self.log(f"Domain {domain} resolves to {ip}", "SUCCESS")
+        except Exception as e:
+            self.log(f"DNS resolution failed for {domain}: {e}", "WARNING")
+            self.log("SSL certificate generation may fail if domain doesn't point to this server", "WARNING")
+    
+    def verify_ssl_certificate(self):
+        """Verify SSL certificate installation"""
+        domain = self.config['domain']
+        cert_path = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+        
+        if os.path.exists(cert_path):
+            try:
+                # Check certificate expiry
+                result = subprocess.run([
+                    'openssl', 'x509', '-in', cert_path, '-noout', '-dates'
+                ], capture_output=True, text=True, check=True)
+                
+                self.log("SSL certificate details:", "INFO")
+                for line in result.stdout.strip().split('\n'):
+                    self.log(f"  {line}", "INFO")
+                    
+            except Exception as e:
+                self.log(f"Could not verify certificate details: {e}", "WARNING")
+        else:
+            self.log("SSL certificate file not found", "ERROR")
     
     def setup_ssl_renewal(self):
         """Setup SSL certificate auto-renewal"""
