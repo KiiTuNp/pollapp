@@ -254,6 +254,6 @@ test_plan:
 
 agent_communication:
     - agent: "main"
-      message: "PROBLÈME D'INTERACTIVITÉ RÉSOLU ✅ Créé deploy-final.sh avec saisie clavier 100% fonctionnelle. Corrections: utilisation correcte des descripteurs de fichier (stderr pour prompts, stdin pour input), fonctions d'input robustes avec validation, choix multiples interactifs. Script principal maintenant complètement opérationnel pour déploiement interactif."
+      message: "PROBLÈME MONGODB INSTALLATION RÉSOLU ✅ Corrigé erreur GPG (syntax incorrecte) et implémenté 3 méthodes de fallback: 1) Repository officiel MongoDB avec multiple syntaxes GPG, 2) Repository Ubuntu, 3) Package snap. Script Python professionnel avec configuration interactive pour production (domaine, SSL, serveur web). Installation robuste et résistante aux pannes."
     - agent: "testing"
       message: "Completed comprehensive testing of Secret Poll backend API. All major endpoints tested and working correctly: Health check (✅), Room creation/management (✅), Poll creation/voting (✅), Participant management (✅), WebSocket connectivity (✅), PDF generation (✅), Database operations (✅), Real-time updates (✅), Multiple active polls (✅). Total: 47/47 tests passed (100% success rate). Backend is production-ready."
