@@ -904,7 +904,7 @@ echo "Services restarted"
         
         self.log("Management tools created", "SUCCESS")
     
-    def run_command(self, cmd: List[str], description: str = "", capture_output: bool = False) -> str:
+    def run_command(self, cmd: List[str], description: str = "", capture_output: bool = False, ignore_errors: bool = False) -> str:
         """Run a system command with error handling"""
         try:
             if description:
@@ -923,8 +923,12 @@ echo "Services restarted"
             if description:
                 error_msg = f"{description} failed"
             
-            self.log(error_msg, "ERROR")
-            self.log(f"Exit code: {e.returncode}", "ERROR")
+            self.log(error_msg, "ERROR" if not ignore_errors else "WARNING")
+            self.log(f"Exit code: {e.returncode}", "ERROR" if not ignore_errors else "WARNING")
+            
+            if ignore_errors:
+                self.log("Continuing despite error (ignore_errors=True)", "WARNING")
+                return ""
             
             # Show recent log entries for debugging
             try:
@@ -938,7 +942,12 @@ echo "Services restarted"
             
             sys.exit(1)
         except FileNotFoundError:
-            self.log(f"Command not found: {cmd[0]}", "ERROR")
+            error_msg = f"Command not found: {cmd[0]}"
+            self.log(error_msg, "ERROR" if not ignore_errors else "WARNING")
+            
+            if ignore_errors:
+                return ""
+            
             sys.exit(1)
     
     def verify_installation(self):
